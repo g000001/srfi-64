@@ -29,11 +29,17 @@
 
 (test-end)
 
-(test-result-clear (test-runner-current))
+
 
 (progn
-  (test-begin "foo4" 2)
+  (test-runner-reset (test-runner-current))
+  (test-begin "foo")
   (test-equal 1 1)
-  ;; (test-equal 1 1)
+  (test-equal 1 1)
   (test-error T (eval '(car 8)))
+  (test-assert t)
   (test-end))
+;>>  %%%% Starting test foo
+;>>  # of expected passes      5
+;>>
+;=>  NIL

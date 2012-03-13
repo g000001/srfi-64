@@ -1,14 +1,6 @@
 ;;;; srfi-64.lisp
 
 (cl:in-package :srfi-64.internal)
-;; (in-readtable :srfi-64)
-
-(def-suite srfi-64)
-
-(in-suite srfi-64)
-
-;;; "srfi-64" goes here. Hacks and glory await!
-
 
 ;; Copyright (c) 2005, 2006 Per Bothner
 ;;
@@ -617,8 +609,16 @@
 (define-syntax %test-evaluate-with-catch
   (syntax-rules ()
     ((%test-evaluate-with-catch test-expression)
-     ;; (guard (err (:else 'NIL)) test-expression)
-     (progn test-expression))))
+     (guard (err
+             (:else 'NIL))
+            test-expression))))
+
+#|(guard (err
+        ((typep err 'cl:condition) :cl-error)
+        (:else 'NIL))
+       #|(error "")|#
+       (raise 'foo)
+       )|#
 
 #|(cond-expand
  ((or kawa mzscheme)
@@ -662,7 +662,7 @@
 (define-syntax %test-comp2body
   (syntax-rules ()
     ((%test-comp2body r comp expected expr)
-     (let ()
+     (progn
        (if (%test-on-test-begin r)
            (let ((exp expected))
              (test-result-set! r 'expected-value exp)
@@ -677,15 +677,23 @@
          (<= value (+ expected error)))))
 
 (define-syntax %test-comp1body
-  (syntax-rules ()
-    ((%test-comp1body r expr)
-     (let ()
+  (syntax-rules (T)
+    ((%test-comp1body r expr T)
+     (progn
        (if (%test-on-test-begin r)
-	   (let ()
-	     (let ((res (%test-evaluate-with-catch expr)))
-	       (test-result-set! r 'actual-value res)
-	       (%test-on-test-end r res) )))
-       (%test-report-result) ))))
+	   (progn
+	     (%test-evaluate-with-catch expr)
+             (test-result-set! r 'actual-value T)
+             (%test-on-test-end r T) ))
+       (%test-report-result) ))
+    ((%test-comp1body r expr)
+     (with ((res (gensym "RES-")))
+       (progn
+         (when (%test-on-test-begin r)
+           (let ((res (%test-evaluate-with-catch expr)))
+             (test-result-set! r 'actual-value res)
+             (%test-on-test-end r res) ))
+         (%test-report-result) )))))
 
 #|(cond-expand
  ((or kawa mzscheme)
@@ -760,15 +768,17 @@
 (define-syntax test-assert
   (syntax-rules ()
     ((test-assert tname test-expression)
-     (let* ((r (test-runner-get))
-            (name tname) )
-       (declare (ignorable name))
-       (test-result-alist! r '((test-name . tname)))
-       (%test-comp1body r test-expression) ))
+     (with ((r (gensym "R-")))
+       (let* ((r (test-runner-get))
+              (name tname) )
+         (declare (ignorable name))
+         (test-result-alist! r '((test-name . tname)))
+         (%test-comp1body r test-expression) )))
     ((test-assert test-expression)
-     (let* ((r (test-runner-get)))
-       (test-result-alist! r '())
-       (%test-comp1body r test-expression) ))))
+     (with ((r (gensym "R-")))
+       (let* ((r (test-runner-get)))
+         (test-result-alist! r '())
+         (%test-comp1body r test-expression) )))))
 
 (define-syntax %test-comp2
   (syntax-rules ()
@@ -860,28 +870,35 @@
 	 (test-result-set! r 'result-kind 'skip)
 	 (%test-report-result)))))))|#
 
-#|(define-syntax %test-error
-  (syntax-rules ()
+(define-syntax %test-error
+  (syntax-rules (T)
+    ((%test-error r T expr)
+     (%test-comp1body
+      r
+      (guard (ex (:else 'T))
+             expr )
+      T))
     ((%test-error r etype expr)
      (%test-comp1body
-      r (guard (ex ((condition-type? etype)
+      r
+      (guard (ex ((condition-type? etype)
                     (and (condition? ex) (condition-has-type? ex etype)) )
                    ((procedure? etype)
                     (funcall etype ex) )
                    ((equal? etype 'T)
                     'T )
                    (:else 'T) )
-               expr )))))|#
+           expr )))))
 
 ;;; cl style condition system
-(define-syntax %test-error
+#|(define-syntax %test-error
   (syntax-rules (T)
     ((%test-error r T expr)
      (%test-comp1body r (handler-case expr
                           (cl:error () 'T))))
     ((%test-error r etype expr)
      (%test-comp1body r (handler-case expr
-                          (etype ()))))))
+                          (etype ()))))))|#
 
 #|(cond-expand
  ((or kawa mzscheme)
@@ -915,6 +932,11 @@
        (let* ((r (test-runner-get)))
          (declare (ignorable r))
          (test-assert name (%test-error r etype expr)) )))
+    ((test-error T expr)
+     (with ((r (gensym "R-")))
+       (let* ((r (test-runner-get)))
+         (declare (ignorable r))
+         (test-assert (progn (%test-error r T expr) T)) )))
     ((test-error etype expr)
      (with ((r (gensym "R-")))
        (let* ((r (test-runner-get)))
@@ -925,6 +947,15 @@
        (let* ((r (test-runner-get)))
          (declare (ignorable r))
          (test-assert (%test-error r 'T expr)) )))))
+
+(define-syntax test-with-runner
+  (syntax-rules ()
+    ((test-with-runner runner form ***)
+     (let ((saved-runner (test-runner-current)))
+       (dynamic-wind
+        (lambda () (test-runner-current runner))
+        (lambda () form ***)
+        (lambda () (test-runner-current saved-runner)) )))))
 
 (define-function (test-apply first . rest)
   (if (test-runner? first)
@@ -944,15 +975,6 @@
 	    (let ((r (test-runner-create)))
 	      (test-with-runner r (apply #'test-apply first rest))
 	      (funcall (test-runner-on-final r) r) )))))
-
-(define-syntax test-with-runner
-  (syntax-rules ()
-    ((test-with-runner runner form ***)
-     (let ((saved-runner (test-runner-current)))
-       (dynamic-wind
-        (lambda () (test-runner-current runner))
-        (lambda () form ***)
-        (lambda () (test-runner-current saved-runner)) )))))
 
 ;;; Predicates
 
