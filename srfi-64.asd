@@ -6,7 +6,9 @@
   :serial t
   :depends-on (:fiveam
                :srfi-0
+               :srfi-5
                :srfi-9
+               :srfi-23
                :srfi-34
                :srfi-35
                :srfi-39)
