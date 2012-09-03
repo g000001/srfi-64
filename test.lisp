@@ -186,15 +186,30 @@
 (test-begin "2. Tests for catching errors")
 
 (test-begin "2.1. test-error")
-
+:vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 (test-equal
  "2.1.1. Baseline test; PASS with no optional args"
  '(("") () () () () (1 0 0 0 0))
  (triv-runner
   (lambda ()
     ;; PASS
-    (test-error (vector-ref '#(1 2) 9)))))
+    (test-error (vector-ref '#(1 2) 9))))
+ ;; (("" "") NIL NIL NIL NIL (2 0 0 0 0))
+ )
 
+(LET* ((R (TEST-RUNNER-GET))
+       (NAME "2.1.1. Baseline test; PASS with no optional args"))
+  (DECLARE (IGNORABLE NAME))
+  (TEST-RESULT-ALIST! R
+                      (LIST
+                       (CONS 'TEST-NAME
+                             "2.1.1. Baseline test; PASS with no optional args")))
+  (%TEST-COMP2BODY R EQUAL? '(("") NIL NIL NIL NIL (1 0 0 0 0))
+                   (TRIV-RUNNER
+                    (LAMBDA NIL (TEST-ERROR (VECTOR-REF '#(1 2) 9))))))
+
+
+:vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 (test-equal
  "2.1.2. Baseline test; FAIL with no optional args"
  '(() ("") () () () (0 1 0 0 0))
@@ -202,8 +217,11 @@
   (lambda ()
     ;; FAIL: the expr does not raise an error and `test-error' is
     ;;       claiming that it will, so this test should FAIL
-    (test-error (vector-ref '#(1 2) 0)))))
+    (test-error (vector-ref '#(1 2) 0))))
+ ;; (("" "") NIL NIL NIL NIL (2 0 0 0 0))
+ )
 
+:vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 (test-equal
  "2.1.3. PASS with a test name and error type"
  '(("a") () () () () (1 0 0 0 0))
@@ -242,15 +260,15 @@
 
 ;;; since the error raised by `test-end' on a mismatch is not a test
 ;;; error, we actually expect the triv-runner itself to fail
-
 (test-error
  "3.3. test-begin with mismatched test-end"
-'T
+ T
  (triv-runner
   (lambda ()
     (test-begin "a")
     (test-assert "b" 'T)
     (test-end "x"))))
+
 
 (test-equal
  "3.4. test-begin with name and count"
@@ -267,12 +285,13 @@
 
 (test-error
  "3.5. test-begin with mismatched count"
- 'T
+ T
  (triv-runner
   (lambda ()
     (test-begin "a" 99)
     (test-assert "b" 'T)
     (test-end "a"))))
+
 
 (test-equal
  "3.6. introspecting on the group path"
@@ -306,45 +325,50 @@
 (test-begin "4. Handling set-up and cleanup")
 
 (test-equal "4.1. Normal exit path"
-             '(in 1 2 out)
-             (let ((ex '()))
-               (define-function (do s)
-                 (set! ex (cons s ex)))
-               ;;
-               (triv-runner
-                (lambda ()
-                  (test-group-with-cleanup
-                   "foo"
-                   (do 'in)
-                   (do 1)
-                   (do 2)
-                   (do 'out))))
-               (reverse ex)))
+            '(in 1 2 out)
+            (let ((ex '()))
+              (with-local-define-function 
+                (define-function (do s)
+                  (set! ex (cons s ex)) )
+                :in
+                (triv-runner
+                 (lambda ()
+                   (test-group-with-cleanup
+                    "foo"
+                    (do 'in)
+                    (do 1)
+                    (do 2)
+                    (do 'out) )))
+                (reverse ex) )))
+
+(test-equal "test-equal test" '(1 2 3) '(1 2 3))
 
 (test-equal "4.2. Exception exit path"
              '(in 1 out)
              (let ((ex '()))
-               (define-function (do s)
-                 (set! ex (cons s ex)))
-               ;;
-               ;; the outer runner is to run the `test-error' in, to
-               ;; catch the exception raised in the inner runner,
-               ;; since we don't want to depend on any other
-               ;; exception-catching support
-               ;;
-               (triv-runner
-                (lambda ()
-                  (test-error
-                   (triv-runner
-                    (lambda ()
-                      (test-group-with-cleanup
-                       "foo"
-                       (do 'in) (test-assert 'T)
-                       (do 1)   (test-assert 'T)
-                       (choke)  (test-assert 'T)
-                       (do 2)   (test-assert 'T)
-                       (do 'out)))))))
-               (reverse ex)))
+               (with-local-define-function 
+                 (define-function (do s)
+                   (set! ex (cons s ex)) )
+                 :in
+                 ;;
+                 ;; the outer runner is to run the `test-error' in, to
+                 ;; catch the exception raised in the inner runner,
+                 ;; since we don't want to depend on any other
+                 ;; exception-catching support
+                 ;;
+                 (triv-runner
+                  (lambda ()
+                    (test-error
+                     (triv-runner
+                      (lambda ()
+                        (test-group-with-cleanup
+                         "foo"
+                         (do 'in) (test-assert 'T)
+                         (do 1)   (test-assert 'T)
+                         (choke)  (test-assert 'T)
+                         (do 2)   (test-assert 'T)
+                         (do 'out) ))))))
+                 (reverse ex)) ))
 
 (test-end "4. Handling set-up and cleanup")
 
@@ -650,7 +674,7 @@
 ;;;
 (define-function (with-factory-saved thunk)
   (let* ((saved (test-runner-factory))
-         (result (thunk)))
+         (result (funcall thunk)))
     (test-runner-factory saved)
     result))
 
@@ -678,10 +702,10 @@
 (test-begin "8.2. test-runner-simple")
 (test-assert "8.2.1. default on-test hook"
              (eq? (test-runner-on-test-end (test-runner-simple))
-                  test-on-test-end-simple))
+                  #'test-on-test-end-simple))
 (test-assert "8.2.2. default on-final hook"
              (eq? (test-runner-on-final (test-runner-simple))
-                  test-on-final-simple))
+                  #'test-on-final-simple))
 (test-end)
 
 (test-begin "8.3. test-runner-factory")
@@ -919,24 +943,24 @@
 
 #|  Time to stop having fun...
 
-(test-begin "9. For fun, some meta-test errors")
+ (test-begin "9. For fun, some meta-test errors")
 
-(test-equal
+ (test-equal
  "9.1. Really PASSes, but test like it should FAIL"
  '(() ("b") () () ())
  (triv-runner
   (lambda ()
     (test-assert "b" 'T))))
 
-(test-expect-fail "9.2. Expect to FAIL and do so")
-(test-expect-fail "9.3. Expect to FAIL but PASS")
-(test-skip "9.4. SKIP this one")
-
-(test-assert "9.2. Expect to FAIL and do so" 'NIL)
-(test-assert "9.3. Expect to FAIL but PASS" 'T)
-(test-assert "9.4. SKIP this one" 'T)
-
-(test-end)
+ (test-expect-fail "9.2. Expect to FAIL and do so")
+ (test-expect-fail "9.3. Expect to FAIL but PASS")
+ (test-skip "9.4. SKIP this one")
+ 
+ (test-assert "9.2. Expect to FAIL and do so" 'NIL)
+ (test-assert "9.3. Expect to FAIL but PASS" 'T)
+ (test-assert "9.4. SKIP this one" 'T)
+ 
+ (test-end)
  |#
 
 (test-end "SRFI 64 - Meta-Test Suite")

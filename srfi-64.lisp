@@ -224,24 +224,24 @@
 (define-function test-runner-current (make-parameter 'NIL))
 (define-function test-runner-factory (make-parameter #'test-runner-simple))
 
-#|(cond-expand
- (srfi-39)
+(cond-expand
+ (:srfi-39)
 
  (:else
-  (define-function %test-runner-current 'NIL)
+  (defparameter %test-runner-current 'NIL)
   (define-syntax test-runner-current
     (syntax-rules ()
       ((test-runner-current)
        %test-runner-current)
       ((test-runner-current runner)
        (set! %test-runner-current runner))))
-  (define-function %test-runner-factory test-runner-simple)
+  (defparameter %test-runner-factory #'test-runner-simple)
   (define-syntax test-runner-factory
     (syntax-rules ()
       ((test-runner-factory)
        %test-runner-factory)
       ((test-runner-factory runner)
-       (set! %test-runner-factory runner))))))|#
+       (set! %test-runner-factory runner))))))
 
 ;; A safer wrapper to test-runner-current.
 (define-function (test-runner-get)
@@ -300,8 +300,8 @@
 				   (%test-runner-count-list runner)))
     (test-runner-group-stack! runner (cons suite-name
 					(test-runner-group-stack runner)))))
-#|(cond-expand
- (kawa
+(cond-expand
+ (:kawa
   ;; Kawa has test-begin built in, implemented as:
   ;; (begin
   ;;   (cond-expand (srfi-64 #!void) (:else (require 'srfi-64)))
@@ -310,7 +310,7 @@
   ;; which makes normal test suites loadable without non-portable commands.
   )
  (:else
-  ))|#
+  ))
 
 (define-syntax test-begin
   (syntax-rules ()
@@ -609,9 +609,10 @@
 (define-syntax %test-evaluate-with-catch
   (syntax-rules ()
     ((%test-evaluate-with-catch test-expression)
-     (guard (err
-             (:else 'NIL))
-            test-expression))))
+     (with ((err (gensym "ERR-")))
+       (guard (err
+               (:else 'NIL) )
+              test-expression )))))
 
 #|(guard (err
         ((typep err 'cl:condition) :cl-error)
@@ -662,14 +663,16 @@
 (define-syntax %test-comp2body
   (syntax-rules ()
     ((%test-comp2body r comp expected expr)
-     (progn
-       (if (%test-on-test-begin r)
-           (let ((exp expected))
-             (test-result-set! r 'expected-value exp)
-             (let ((res (%test-evaluate-with-catch expr)))
-               (test-result-set! r 'actual-value res)
-               (%test-on-test-end r (comp exp res)) )))
-       (%test-report-result) ))))
+     (with ((exp (gensym "%TEST-COMP2BODY.EXP-"))
+            (res (gensym "%TEST-COMP2BODY.RES-")))
+       (progn
+         (if (%test-on-test-begin r)
+             (let ((exp expected))
+               (test-result-set! r 'expected-value exp)
+               (let ((res (%test-evaluate-with-catch expr)))
+                 (test-result-set! r 'actual-value res)
+                 (%test-on-test-end r (comp exp res)) )))
+         (%test-report-result) )))))
 
 (define-function (%test-approximimate= error)
   (lambda (value expected)
@@ -685,7 +688,7 @@
 	     (%test-evaluate-with-catch expr)
              (test-result-set! r 'actual-value T)
              (%test-on-test-end r T) ))
-       (%test-report-result) ))
+       (%test-report-result)))
     ((%test-comp1body r expr)
      (with ((res (gensym "RES-")))
        (progn
@@ -783,15 +786,18 @@
 (define-syntax %test-comp2
   (syntax-rules ()
     ((%test-comp2 comp tname expected expr)
-     (let* ((r (test-runner-get))
-            (name tname) )
-       (declare (ignorable name))
-       (test-result-alist! r (list (cons 'test-name tname)))
-       (%test-comp2body r comp expected expr) ))
+     (with ((r (gensym "%TEST-COMP2.R-"))
+            (name (gensym "%TEST-COMP2.NAME-")))
+       (let* ((r (test-runner-get))
+              (name tname) )
+         (declare (ignorable name))
+         (test-result-alist! r (list (cons 'test-name tname)))
+         (%test-comp2body r comp expected expr) )))
     ((%test-comp2 comp expected expr)
-     (let* ((r (test-runner-get)))
-       (test-result-alist! r '())
-       (%test-comp2body r comp expected expr) ))))
+     (with ((r (gensym "%TEST-COMP2.R-")))
+       (let* ((r (test-runner-get)))
+         (test-result-alist! r '())
+         (%test-comp2body r comp expected expr) )))))
 
 (define-syntax test-equal
   (syntax-rules ()
@@ -873,22 +879,28 @@
 (define-syntax %test-error
   (syntax-rules (T)
     ((%test-error r T expr)
-     (%test-comp1body
-      r
-      (guard (ex (:else 'T))
-             expr )
-      T))
+     (with ((ex (gensym "EX-")))
+       (begin
+         (%test-comp1body
+          r
+          (guard (ex (:else 'T))
+                 expr )
+          T )
+         ;; FIXME
+;;         T
+         )))
     ((%test-error r etype expr)
-     (%test-comp1body
-      r
-      (guard (ex ((condition-type? etype)
+     (with ((ex (gensym "EX-")))
+       (%test-comp1body
+        r
+        (guard (ex ((condition-type? etype)
                     (and (condition? ex) (condition-has-type? ex etype)) )
                    ((procedure? etype)
                     (funcall etype ex) )
                    ((equal? etype 'T)
                     'T )
                    (:else 'T) )
-           expr )))))
+               expr ))))))
 
 ;;; cl style condition system
 #|(define-syntax %test-error
@@ -946,7 +958,7 @@
      (with ((r (gensym "R-")))
        (let* ((r (test-runner-get)))
          (declare (ignorable r))
-         (test-assert (%test-error r 'T expr)) )))))
+         (test-assert (%test-error r T expr)) )))))
 
 (define-syntax test-with-runner
   (syntax-rules ()
