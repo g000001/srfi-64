@@ -1,9 +1,4 @@
-(cl:in-package :srfi-64.internal)
-;; (in-readtable :srfi-64)
-
-(def-suite srfi-64)
-
-(in-suite srfi-64)
+(cl:in-package "https://github.com/g000001/srfi-64#internals")
 
 (test-runner-reset (test-runner-get))
 

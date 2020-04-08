@@ -1,6 +1,6 @@
 ;;;; srfi-64.lisp
 
-(cl:in-package :srfi-64.internal)
+(cl:in-package "https://github.com/g000001/srfi-64#internals")
 
 ;; Copyright (c) 2005, 2006 Per Bothner
 ;;
@@ -207,7 +207,7 @@
 
 ;; Not part of the specification.  FIXME
 ;; Controls whether a log file is generated.
-(defvar test-log-to-file 'T)
+(defvar test-log-to-file "/tmp/srfi-64-test.log")
 
 (define-function (test-runner-simple)
   (let ((runner (%test-runner-alloc)))
@@ -564,6 +564,8 @@
 (define-function (%test-report-result)
   (let* ((r (test-runner-get))
 	 (result-kind (test-result-kind r)))
+    #+||#
+    (cl:format t "================= ~S =================~2%" result-kind)
     (case result-kind
       ((pass)
        (test-runner-pass-count! r (+ 1 (test-runner-pass-count r))))
@@ -605,21 +607,12 @@
       ((%test-evaluate-with-catch test-expression)
        test-expression)))))|#
 
-;;; ???
 (define-syntax %test-evaluate-with-catch
   (syntax-rules ()
     ((%test-evaluate-with-catch test-expression)
      (with ((err (gensym "ERR-")))
-       (guard (err
-               (:else 'NIL) )
-              test-expression )))))
-
-#|(guard (err
-        ((typep err 'cl:condition) :cl-error)
-        (:else 'NIL))
-       #|(error "")|#
-       (raise 'foo)
-       )|#
+       (guard (err (:else 'NIL) )
+         test-expression )))))
 
 #|(cond-expand
  ((or kawa mzscheme)
@@ -775,7 +768,7 @@
        (let* ((r (test-runner-get))
               (name tname) )
          (declare (ignorable name))
-         (test-result-alist! r '((test-name . tname)))
+         (test-result-alist! r (list (cons 'test-name tname)))
          (%test-comp1body r test-expression) )))
     ((test-assert test-expression)
      (with ((r (gensym "R-")))
@@ -876,7 +869,7 @@
 	 (test-result-set! r 'result-kind 'skip)
 	 (%test-report-result)))))))|#
 
-(define-syntax %test-error
+#|(define-syntax %test-error
   (syntax-rules (T)
     ((%test-error r T expr)
      (with ((ex (gensym "EX-")))
@@ -900,17 +893,21 @@
                    ((equal? etype 'T)
                     'T )
                    (:else 'T) )
-               expr ))))))
+               expr ))))))|#
 
 ;;; cl style condition system
-#|(define-syntax %test-error
+(define-syntax %test-error
   (syntax-rules (T)
     ((%test-error r T expr)
-     (%test-comp1body r (handler-case expr
-                          (cl:error () 'T))))
+     (%test-comp1body r 
+                      (handler-case expr
+                        (cl:error () T))))
     ((%test-error r etype expr)
-     (%test-comp1body r (handler-case expr
-                          (etype ()))))))|#
+     (%test-comp1body r 
+                      (handler-case expr
+                        (etype () NIL))
+                      T))))
+
 
 #|(cond-expand
  ((or kawa mzscheme)
@@ -1070,3 +1067,4 @@
       (if (eof-object? (read-char port nil +eof+))
           (eval form)
           (error "(not at eof)")))))
+

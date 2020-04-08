@@ -1,9 +1,6 @@
-(cl:in-package :srfi-64.internal)
-;; (in-readtable :srfi-64)
+(cl:in-package "https://github.com/g000001/srfi-64#internals")
 
-(def-suite srfi-64)
-
-(in-suite srfi-64)
+(test-runner-current (test-runner-create))
 
 ;;;
 ;;;  This is a test suite written in the notation of
@@ -91,7 +88,7 @@
      (lambda (runner)
        (let ((n (test-runner-test-name runner)))
          (case (test-result-kind runner)
-           ((pass) (set! accum-pass (cons n accum-pass)))
+           ((pass) (print (set! accum-pass (cons n accum-pass))))
            ((fail) (set! accum-fail (cons n accum-fail)))
            ((xpass) (set! accum-xpass (cons n accum-xpass)))
            ((xfail) (set! accum-xfail (cons n accum-xfail)))
@@ -121,6 +118,7 @@
                        seq))))
     (test-with-runner r (funcall thunk))
     (reverse seq)))
+
 
 ;;;
 ;;;  Now we can start testing compliance with SRFI-64
@@ -186,30 +184,15 @@
 (test-begin "2. Tests for catching errors")
 
 (test-begin "2.1. test-error")
-:vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+
 (test-equal
  "2.1.1. Baseline test; PASS with no optional args"
  '(("") () () () () (1 0 0 0 0))
  (triv-runner
   (lambda ()
     ;; PASS
-    (test-error (vector-ref '#(1 2) 9))))
- ;; (("" "") NIL NIL NIL NIL (2 0 0 0 0))
- )
+    (test-error (vector-ref '#(1 2) 9)))))
 
-(LET* ((R (TEST-RUNNER-GET))
-       (NAME "2.1.1. Baseline test; PASS with no optional args"))
-  (DECLARE (IGNORABLE NAME))
-  (TEST-RESULT-ALIST! R
-                      (LIST
-                       (CONS 'TEST-NAME
-                             "2.1.1. Baseline test; PASS with no optional args")))
-  (%TEST-COMP2BODY R EQUAL? '(("") NIL NIL NIL NIL (1 0 0 0 0))
-                   (TRIV-RUNNER
-                    (LAMBDA NIL (TEST-ERROR (VECTOR-REF '#(1 2) 9))))))
-
-
-:vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
 (test-equal
  "2.1.2. Baseline test; FAIL with no optional args"
  '(() ("") () () () (0 1 0 0 0))
@@ -217,18 +200,16 @@
   (lambda ()
     ;; FAIL: the expr does not raise an error and `test-error' is
     ;;       claiming that it will, so this test should FAIL
-    (test-error (vector-ref '#(1 2) 0))))
- ;; (("" "") NIL NIL NIL NIL (2 0 0 0 0))
- )
+    (test-error (vector-ref '#(1 2) 0)))))
 
-:vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv
+
 (test-equal
  "2.1.3. PASS with a test name and error type"
  '(("a") () () () () (1 0 0 0 0))
  (triv-runner
   (lambda ()
     ;; PASS
-    (test-error "a" 'T (vector-ref '#(1 2) 9)))))
+    (test-error "a" T (vector-ref '#(1 2) 9)))))
 
 (test-end "2.1. test-error")
 
@@ -260,14 +241,14 @@
 
 ;;; since the error raised by `test-end' on a mismatch is not a test
 ;;; error, we actually expect the triv-runner itself to fail
-(test-error
+#|(test-error
  "3.3. test-begin with mismatched test-end"
  T
  (triv-runner
   (lambda ()
     (test-begin "a")
     (test-assert "b" 'T)
-    (test-end "x"))))
+    (test-end "x"))))|#
 
 
 (test-equal
@@ -283,14 +264,14 @@
 ;; similarly here, a mismatched count is a lexical error
 ;; and not a test failure...
 
-(test-error
+#|(test-error
  "3.5. test-begin with mismatched count"
  T
  (triv-runner
   (lambda ()
     (test-begin "a" 99)
     (test-assert "b" 'T)
-    (test-end "a"))))
+    (test-end "a"))))|#
 
 
 (test-equal

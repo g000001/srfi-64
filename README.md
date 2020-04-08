@@ -1,4 +1,4 @@
-* SRFI 64: A Scheme API for test suites
+* SRFI 64 for CL: A Scheme API for test suites
 - Copyright (C) Per Bothner (2005, 2006)
 
 Permission is hereby granted, free of charge, to any person obtaining
