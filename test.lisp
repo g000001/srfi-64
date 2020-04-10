@@ -191,7 +191,7 @@
  (triv-runner
   (lambda ()
     ;; PASS
-    (test-error (vector-ref '#(1 2) 9)))))
+    (test-error (eval '(vector-ref '#(1 2) 9))))))
 
 (test-equal
  "2.1.2. Baseline test; FAIL with no optional args"
@@ -207,9 +207,11 @@
  "2.1.3. PASS with a test name and error type"
  '(("a") () () () () (1 0 0 0 0))
  (triv-runner
-  (lambda ()
+  (cl:lambda (&aux (*index* 9))
+    ;; cancelling the sbcl type checking
+    (declare (special *index*))
     ;; PASS
-    (test-error "a" T (vector-ref '#(1 2) 9)))))
+    (test-error "a" T (vector-ref '#(1 2) *index*)))))
 
 (test-end "2.1. test-error")
 
